@@ -28,7 +28,8 @@
   .popup-scroll {max-height:70px;overflow-y:auto;padding-right:6px;}
   .popup-comments {margin:0;padding-left:18px;font-size:14px;color:#444;}
   .popup-comments li {margin-bottom:6px;line-height:1.4;}
-  #disqus_thread {margin-top:12px; display:none;}
+  .view-comments-btn {margin-top:6px;padding:6px 10px;border:none;border-radius:4px;background:#007bff;color:#fff;cursor:pointer;}
+  .view-comments-btn:hover {background:#0056b3;}
   @media (max-width:750px){#container{flex-direction:column;}#sidebar{width:100%;height:40%;border-left:none;border-top:1px solid #ddd;}#map{height:60%;}}
 </style>
 
@@ -40,16 +41,12 @@
   <div id="sidebar">
     <div id="categoryBar"></div>
     <div id="shopList"></div>
-    <h3>评论区</h3>
-    <div id="disqus_thread"></div>
   </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-var disqus_shortname = "lisbonfoodmap"; // 替换成你在 Disqus 的网站名
-
 /* ========= 地图初始化 ========= */
 var map = L.map("map").setView([38.7368, -9.1424], 13);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19}).addTo(map);
@@ -93,7 +90,6 @@ categories.forEach(cat=>{
     document.querySelectorAll(".cat-btn").forEach(b=>b.classList.remove("active"));
     btn.classList.add("active");
     updateDisplay();
-    hideDisqus();
   };
   catBar.appendChild(btn);
 });
@@ -113,9 +109,9 @@ shops.forEach(s=>{
           ${s.desc.map(item=>`<li>${item}</li>`).join("")}
         </ul>
       </div>
+      <button class="view-comments-btn" onclick="goToShopPage('${s.name}')">查看评论</button>
     </div>
   `);
-  s.marker.on("click",()=>{showDisqus(s);});
 });
 
 /* ========= 右侧列表显示 ========= */
@@ -129,47 +125,16 @@ function updateDisplay(){
       let div=document.createElement("div");
       div.className="shop-item";
       div.innerText=s.name;
-      div.onclick=()=>{map.flyTo([s.lat,s.lng],16); s.marker.openPopup(); showDisqus(s);};
+      div.onclick=()=>{map.flyTo([s.lat,s.lng],16); s.marker.openPopup();};
       list.appendChild(div);
     }
   });
 }
 updateDisplay();
 
-/* ========= Disqus 评论功能 ========= */
-function loadDisqus(shop){
-  var disqus_identifier = 'shop_' + shop.name.replace(/\s/g,'_');
-  var disqus_url = window.location.href + '#' + disqus_identifier;
-  document.getElementById('disqus_thread').style.display = 'block';
-
-  if(window.DISQUS){
-    DISQUS.reset({
-      reload:true,
-      config:function(){
-        this.page.identifier = disqus_identifier;
-        this.page.url = disqus_url;
-      }
-    });
-  } else {
-    window.disqus_config = function () {
-      this.page.identifier = disqus_identifier;
-      this.page.url = disqus_url;
-    };
-    var d=document,s=d.createElement('script');
-    s.src='https://' + disqus_shortname + '.disqus.com/embed.js';
-    s.setAttribute('data-timestamp',+new Date());
-    (d.head||d.body).appendChild(s);
-  }
-}
-
-function showDisqus(shop){
-  // 隐藏评论区直到加载
-  document.getElementById('disqus_thread').style.display = 'block';
-  loadDisqus(shop);
-}
-
-function hideDisqus(){
-  document.getElementById('disqus_thread').style.display = 'none';
+/* ========= 跳转到单独页面查看评论 ========= */
+function goToShopPage(shopName){
+  window.location.href = 'shop.html?name=' + encodeURIComponent(shopName);
 }
 </script>
 
