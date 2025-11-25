@@ -146,17 +146,38 @@ function showDisqus(shop){
   }
 }
 
-/* ========= 初始化 Disqus ========= */
-var disqus_config=function(){
-  this.page.url=window.location.href;
-  this.page.identifier=window.location.hash||'default';
-};
-(function(){
-  var d=document,s=d.createElement('script');
-  s.src='https://lisbonfoodmap.disqus.com/embed.js';
-  s.setAttribute('data-timestamp',+new Date());
-  (d.head||d.body).appendChild(s);
-})();
+function loadDisqus(shop){
+  var disqus_shortname = "lisbonfoodmap"; // 你的 Disqus 网站名
+  var disqus_identifier = 'shop_' + shop.name.replace(/\s/g,'_');
+  var disqus_url = window.location.href + '#' + disqus_identifier;
+
+  // 如果 Disqus 已经存在，则用 reset 方法刷新
+  if(window.DISQUS){
+    DISQUS.reset({
+      reload:true,
+      config:function(){
+        this.page.identifier = disqus_identifier;
+        this.page.url = disqus_url;
+      }
+    });
+  } else {
+    // 创建配置函数
+    window.disqus_config = function () {
+      this.page.identifier = disqus_identifier;
+      this.page.url = disqus_url;
+    };
+    // 动态加载 Disqus 脚本
+    var d=document,s=d.createElement('script');
+    s.src='https://' + disqus_shortname + '.disqus.com/embed.js';
+    s.setAttribute('data-timestamp',+new Date());
+    (d.head||d.body).appendChild(s);
+  }
+}
+
+// 然后在点击 Marker 或列表项时调用：
+function showDisqus(shop){
+  loadDisqus(shop);
+}
 </script>
 
 </body>
