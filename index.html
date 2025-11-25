@@ -1,4 +1,171 @@
 <!DOCTYPE html>
+
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>里斯本吃喝地图</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<style>
+  body, html {margin:0;padding:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;}
+  #container {display:flex;height:100vh;}
+  #map {flex:1;height:100%;}
+  #sidebar {width:280px;background:#fff;border-left:1px solid #ddd;overflow-y:auto;padding:12px;}
+  #categoryBar {display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  .cat-btn {padding:6px 14px;border-radius:20px;border:1px solid #aaa;background:#f5f5f5;cursor:pointer;font-size:14px;}
+  .cat-btn.active {background:#007bff;color:#fff;border-color:#007bff;}
+  .shop-item {padding:10px;border-bottom:1px solid #eee;cursor:pointer;}
+  .shop-item:hover {background:#f0f8ff;}
+  .custom-marker {width:50px;height:50px;border-radius:50%;overflow:hidden;border:3px solid white;box-shadow:0 0 6px rgba(0,0,0,0.25);}
+  .custom-marker img {width:100%;height:100%;object-fit:cover;}
+  .popup-card {width:240px;}
+  .popup-img {width:100%;height:140px;border-radius:8px;object-fit:cover;}
+  .popup-title {font-size:18px;font-weight:bold;margin:6px 0;}
+  .popup-cost {font-size:14px;color:#444;}
+  .popup-address {font-size:14px;color:#444;}
+  .popup-scroll {max-height:70px;overflow-y:auto;padding-right:6px;}
+  .popup-comments {margin:0;padding-left:18px;font-size:14px;color:#444;}
+  .popup-comments li {margin-bottom:6px;line-height:1.4;}
+  @media (max-width:750px){#container{flex-direction:column;}#sidebar{width:100%;height:40%;border-left:none;border-top:1px solid #ddd;}#map{height:60%;}}
+</style>
+
+</head>
+
+<body>
+<div id="container">
+  <div id="map"></div>
+  <div id="sidebar">
+    <div id="categoryBar"></div>
+    <div id="shopList"></div>
+    <h3>评论区</h3>
+    <div id="disqus_thread"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+/* ========= 地图初始化 ========= */
+var map = L.map("map").setView([38.7368, -9.1424], 13);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19}).addTo(map);
+
+/* ========= 餐厅数据 ========= */
+const shops = [
+  {
+    name: "Sakura",
+    lat: 38.76804563521522,
+    lng: -9.092140376049445,
+    categories: ["日料","自助"],
+    cost: "午餐16.9€ 晚餐22.9€",
+    address: "Passeio das Tágides 2.25, 1990-221 Lisboa",
+    desc: ["经常去的店，环境不错，品类挺多的，甜虾有点腥。"],
+    img: "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/2d/e4/55/b2/caption.jpg?w=900&h=500&s=1"
+  },
+  {
+    name: "Eat Thai",
+    lat: 38.76327252017592,
+    lng: -9.097865333500149,
+    categories: ["泰餐"],
+    cost: "谷歌人均15-20€，但我感觉还要贵一些",
+    address: "Av. Mediterrâneo 6H, 1990-155 Lisboa",
+    desc: ["泰国人开的，很正宗，去了好多次了。猪皮脆脆的。生腌虾很新鲜，有点辣。甜品芒果糯米饭必点。可惜没有生腌三文鱼…… 烤猪肉不推荐，硬。"],
+    img: "https://cdn.thefork.com/tf-lab/image/upload/w_500,h_500,c_fill,q_auto,f_auto,g_auto:subject/restaurant/5f910d76-8da2-4dbc-aaeb-9f5399d25d6d/f6b251fb-33ce-4355-94f6-5163cfa33e00.jpg"
+  }
+];
+
+/* ========= 分类按钮 ========= */
+const categorySet = new Set();
+shops.forEach(shop => shop.categories.forEach(c => categorySet.add(c)));
+const categories = ["全部", ...categorySet];
+let activeCat = "全部";
+const catBar = document.getElementById("categoryBar");
+categories.forEach(cat=>{
+  let btn = document.createElement("button");
+  btn.className = "cat-btn" + (cat==="全部"?" active":"");
+  btn.innerText = cat;
+  btn.onclick=()=>{
+    activeCat=cat;
+    document.querySelectorAll(".cat-btn").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    updateDisplay();
+  };
+  catBar.appendChild(btn);
+});
+
+/* ========= Marker + Popup 创建 ========= */
+shops.forEach(s=>{
+  let iconHtml=`<div class="custom-marker"><img src="${s.img}"></div>`;
+  let icon = L.divIcon({html:iconHtml,className:"",iconSize:[50,50],iconAnchor:[25,50]});
+  s.marker = L.marker([s.lat,s.lng],{icon}).bindPopup(`
+    <div class="popup-card">
+      <img class="popup-img" src="${s.img}">
+      <div class="popup-title">${s.name}</div>
+      <div class="popup-cost">${s.cost}</div>
+      <div class="popup-address">${s.address}</div>
+      <div class="popup-scroll">
+        <ul class="popup-comments">
+          ${s.desc.map(item=>`<li>${item}</li>`).join("")}
+        </ul>
+      </div>
+    </div>
+  `);
+  s.marker.on("click",()=>{showDisqus(s);});
+});
+
+/* ========= 右侧列表显示 ========= */
+function updateDisplay(){
+  const list = document.getElementById("shopList");
+  list.innerHTML="";
+  shops.forEach(s=>{
+    let visible = activeCat==="全部" || s.categories.includes(activeCat);
+    if(visible) s.marker.addTo(map); else map.removeLayer(s.marker);
+    if(visible){
+      let div=document.createElement("div");
+      div.className="shop-item";
+      div.innerText=s.name;
+      div.onclick=()=>{map.flyTo([s.lat,s.lng],16); s.marker.openPopup(); showDisqus(s);};
+      list.appendChild(div);
+    }
+  });
+}
+updateDisplay();
+
+/* ========= Disqus 评论 ========= */
+function showDisqus(shop){
+  window.location.hash = shop.name.replace(/\s/g,'_');
+  if(window.DISQUS){
+    DISQUS.reset({
+      reload:true,
+      config:function(){
+        this.page.url = window.location.href;
+        this.page.identifier = 'shop_'+shop.name;
+      }
+    });
+  }
+}
+
+/* ========= 初始化 Disqus ========= */
+var disqus_config=function(){
+  this.page.url=window.location.href;
+  this.page.identifier=window.location.hash||'default';
+};
+(function(){
+  var d=document,s=d.createElement('script');
+  s.src='https://lisbonfoodmap.disqus.com/embed.js';
+  s.setAttribute('data-timestamp',+new Date());
+  (d.head||d.body).appendChild(s);
+})();
+</script>
+
+</body>
+</html>
+
+
+
+
+<!-- <!DOCTYPE html>
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
@@ -545,4 +712,4 @@ function highlightShop(name) {
 updateDisplay();
 </script>
 </body>
-</html>
+</html> -->
